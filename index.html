@@ -339,7 +339,7 @@ function nameHtml(name, effectId){
 const pointsCache = {};
 async function getEffectFor(name){
   const k = name.toLowerCase();
-  if(pointsCache[k]) return pointsCache[k].equipped;
+  // Always fetch fresh — don't use stale cache for leaderboard rendering
   const rec = await loadPoints(name);
   pointsCache[k] = rec;
   return rec.equipped;
@@ -366,6 +366,9 @@ document.querySelectorAll('.mode-btn').forEach(btn=>{
     document.getElementById('circles-lb-card').style.display = mode==='circles' ? '' : 'none';
     document.getElementById('duel-lb-card').style.display = mode==='duel' ? '' : 'none';
     if(mode==='shop') renderShop();
+    if(mode==='circles') loadCircleLeaderboard();
+    if(mode==='duel') loadDuelLeaderboard();
+    if(mode==='reaction') loadReactionLeaderboard();
   });
 });
 
@@ -780,6 +783,13 @@ async function checkHourlyPayout(){
   loadDuelLeaderboard();
   checkHourlyPayout();
   setInterval(checkHourlyPayout, 60000);
+  // Auto-refresh all visible leaderboards every 10 seconds
+  setInterval(()=>{
+    loadReactionLeaderboard();
+    const mode = document.querySelector('.mode-btn.active')?.dataset.mode;
+    if(mode === 'circles') loadCircleLeaderboard();
+    if(mode === 'duel') loadDuelLeaderboard();
+  }, 10000);
 })();
 </script>
 </body>
