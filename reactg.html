@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ReactGame</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#0b0e14; --panel:#141925; --panel2:#1c2333;
+    --accent:#5eead4; --accent2:#a78bfa; --danger:#f87171; --warn:#fbbf24;
+    --text:#e5e7eb; --muted:#8b93a7;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:radial-gradient(circle at 20% 0%, #1a2138 0%, var(--bg) 60%);color:var(--text);min-height:100vh;overflow-x:hidden;}
+  .app{max-width:900px;margin:0 auto;padding:20px 16px 60px;}
+  h1{font-size:26px;text-align:center;margin:8px 0 4px;letter-spacing:1px;}
+  h1 span{color:var(--accent);}
+  .sub{text-align:center;color:var(--muted);font-size:13px;margin-bottom:20px;}
+  .conn-status{text-align:center;font-size:11px;color:var(--muted);margin-bottom:14px;}
+  .conn-status b{color:var(--accent);}
+  .conn-status.offline b{color:var(--danger);}
+  .nav{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:16px;}
+  .nav button{background:var(--panel);border:1px solid #2a3248;color:var(--muted);padding:10px 16px;border-radius:10px;font-size:13px;cursor:pointer;font-weight:600;transition:.15s;}
+  .nav button:hover{color:var(--text);border-color:var(--accent);}
+  .nav button.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#08131a;border-color:transparent;}
+  .card{background:var(--panel);border:1px solid #232b3d;border-radius:16px;padding:24px;margin-bottom:20px;}
+  .top-row{display:flex;gap:10px;align-items:center;justify-content:center;margin-bottom:8px;flex-wrap:wrap;}
+  .top-row input{background:var(--panel2);border:1px solid #2a3248;color:var(--text);padding:9px 14px;border-radius:8px;font-size:14px;width:180px;}
+  .top-row label{color:var(--muted);font-size:13px;}
+  .points-badge{background:var(--panel2);border:1px solid #2a3248;border-radius:20px;padding:8px 16px;font-size:13px;font-weight:700;color:var(--warn);}
+  .points-badge span{color:var(--muted);font-weight:400;margin-right:4px;}
+  .name-preview{text-align:center;margin-bottom:18px;font-size:13px;color:var(--muted);}
+  .name-preview b{font-size:15px;}
+
+  .rt-zone{height:340px;border-radius:14px;display:flex;align-items:center;justify-content:center;flex-direction:column;cursor:pointer;user-select:none;font-size:22px;font-weight:700;text-align:center;transition:background .1s;background:#2a3248;}
+  .rt-zone.wait{background:#7f2323;}
+  .rt-zone.go{background:#166534;}
+  .rt-zone .big{font-size:44px;margin-bottom:6px;}
+  .rt-zone .small{font-size:14px;font-weight:400;color:#d1d5db;margin-top:8px;}
+  .stat-row{display:flex;gap:14px;justify-content:center;margin-top:16px;flex-wrap:wrap;}
+  .stat{background:var(--panel2);border-radius:10px;padding:10px 18px;text-align:center;min-width:90px;}
+  .stat .num{font-size:20px;font-weight:700;color:var(--accent);}
+  .stat .lab{font-size:11px;color:var(--muted);margin-top:2px;}
+
+  .circ-zone{position:relative;height:420px;border-radius:14px;background:#10151f;overflow:hidden;border:1px solid #232b3d;}
+  .circ-target{position:absolute;border-radius:50%;background:radial-gradient(circle at 35% 30%, #7dd3fc, #0ea5e9);box-shadow:0 0 14px rgba(56,189,248,.6);cursor:pointer;border:none;width:56px;height:56px;}
+  .circ-hud{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:14px;}
+  .circ-hud .timer{font-weight:700;color:var(--warn);font-size:18px;}
+  .center-msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;text-align:center;padding:20px;}
+
+  .duel-box{height:320px;border-radius:14px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;text-align:center;background:#2a3248;cursor:pointer;user-select:none;padding:20px;}
+  .duel-box.wait{background:#7f2323;}
+  .duel-box.go{background:#166534;}
+  .duel-box.idle{cursor:default;}
+  .duel-box .headline{font-size:22px;font-weight:700;}
+  .duel-box .sub2{font-size:13px;color:#d1d5db;}
+  .vs-row{display:flex;align-items:center;justify-content:center;gap:16px;margin:14px 0;font-size:15px;}
+  .vs-row .vname{font-weight:700;}
+  .vs-row .vs-mid{color:var(--muted);font-size:12px;}
+  .duel-score{display:flex;justify-content:center;gap:30px;margin-top:14px;font-size:15px;}
+  .duel-score b{color:var(--accent);font-size:20px;}
+  .duel-status{text-align:center;color:var(--muted);font-size:13px;margin-top:10px;}
+  .spinner{width:26px;height:26px;border:3px solid #2a3248;border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 10px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  button.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#08131a;border:none;padding:12px 22px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;}
+  button.primary:hover{opacity:.9;}
+  button.primary:disabled{opacity:.5;cursor:not-allowed;}
+  button.ghost{background:transparent;border:1px solid #2a3248;color:var(--muted);padding:10px 18px;border-radius:10px;cursor:pointer;font-size:13px;}
+  .center-btn{display:flex;justify-content:center;gap:10px;margin-top:14px;}
+
+  .lb-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  .lb-title h3{margin:0;font-size:16px;}
+  .lb-title span{font-size:11px;color:var(--muted);}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:6px 8px;border-bottom:1px solid #232b3d;}
+  td{padding:8px;border-bottom:1px solid #1c2333;}
+  tr.me td{background:rgba(94,234,212,.08);border-radius:6px;}
+  .rank{color:var(--muted);width:30px;}
+  .rank.g1{color:#facc15;font-weight:700;}
+  .rank.g2{color:#cbd5e1;font-weight:700;}
+  .rank.g3{color:#d97706;font-weight:700;}
+  .empty{color:var(--muted);font-size:13px;text-align:center;padding:16px 0;}
+  .loading{color:var(--muted);font-size:13px;text-align:center;padding:16px 0;}
+
+  .shop-balance{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:10px;}
+  .shop-balance .bal-num{font-size:26px;font-weight:800;color:var(--warn);}
+  .shop-section h3{font-size:15px;margin:22px 0 12px;color:var(--text);border-left:3px solid var(--accent);padding-left:10px;}
+  .shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;}
+  .shop-item{background:var(--panel2);border:1px solid #2a3248;border-radius:12px;padding:14px;text-align:center;}
+  .shop-item .preview{font-size:17px;font-weight:800;margin-bottom:10px;padding:10px 0;}
+  .shop-item .price{font-size:12px;color:var(--muted);margin-bottom:10px;}
+  .shop-item button{width:100%;padding:8px;border-radius:8px;border:none;font-weight:700;font-size:12px;cursor:pointer;}
+  .shop-item button.buy{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#08131a;}
+  .shop-item button.buy:disabled{background:#2a3248;color:var(--muted);cursor:not-allowed;}
+  .shop-item button.equip{background:#2a3248;color:var(--text);border:1px solid #3a4358;}
+  .shop-item button.equipped{background:var(--accent);color:#08131a;}
+
+  .fx-red{color:#ef4444;} .fx-orange{color:#f97316;} .fx-yellow{color:#eab308;}
+  .fx-green{color:#22c55e;} .fx-cyan{color:#06b6d4;} .fx-blue{color:#3b82f6;}
+  .fx-purple{color:#8b5cf6;} .fx-pink{color:#ec4899;}
+  .fx-grad-sunset,.fx-grad-ocean,.fx-grad-galaxy,.fx-grad-fire,.fx-grad-mint,.fx-anim-rainbow{
+    background-clip:text;-webkit-background-clip:text;color:transparent;-webkit-text-fill-color:transparent;
+  }
+  .fx-grad-sunset{background-image:linear-gradient(90deg,#f97316,#ec4899);}
+  .fx-grad-ocean{background-image:linear-gradient(90deg,#06b6d4,#3b82f6);}
+  .fx-grad-galaxy{background-image:linear-gradient(90deg,#8b5cf6,#3b82f6);}
+  .fx-grad-fire{background-image:linear-gradient(90deg,#ef4444,#f59e0b);}
+  .fx-grad-mint{background-image:linear-gradient(90deg,#22c55e,#06b6d4);}
+  .fx-anim-rainbow{background-image:linear-gradient(90deg,#ef4444,#f97316,#eab308,#22c55e,#06b6d4,#3b82f6,#8b5cf6,#ef4444);background-size:300% 100%;animation:rainbowMove 3s linear infinite;}
+  @keyframes rainbowMove{0%{background-position:0% 0;}100%{background-position:300% 0;}}
+  .fx-anim-pulse{color:#fff;animation:pulseGlow 1.4s ease-in-out infinite;}
+  @keyframes pulseGlow{0%,100%{text-shadow:0 0 4px #fff;}50%{text-shadow:0 0 16px var(--accent2),0 0 24px var(--accent);}}
+  .fx-anim-shift{animation:colorShift 3s linear infinite;}
+  @keyframes colorShift{0%{color:#ef4444;}20%{color:#f97316;}40%{color:#eab308;}60%{color:#22c55e;}80%{color:#3b82f6;}100%{color:#ef4444;}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>Reflex <span>Arena</span></h1>
+  <div class="sub">Test your reaction time solo, chase circles, duel a random player, and deck out your name</div>
+  <div class="conn-status" id="connStatus">Connecting…</div>
+
+  <div class="top-row">
+    <label for="playerName">Playing as</label>
+    <input id="playerName" type="text" maxlength="16" placeholder="Your name">
+    <div class="points-badge"><span>Balance</span> <span id="ptsBadge">0</span> pts</div>
+  </div>
+  <div class="name-preview">Your name shows as: <b id="namePreview">Anonymous</b></div>
+
+  <div class="nav">
+    <button class="mode-btn active" data-mode="reaction">⚡ Reaction Test</button>
+    <button class="mode-btn" data-mode="circles">🎯 Click the Circles</button>
+    <button class="mode-btn" data-mode="duel">⚔️ 1v1 Duel</button>
+    <button class="mode-btn" data-mode="shop">🛒 Shop</button>
+  </div>
+
+  <!-- REACTION MODE -->
+  <div class="card mode-panel" id="panel-reaction">
+    <div class="rt-zone" id="rtZone">
+      <div class="big">Click to Start</div>
+      <div class="small">Wait for green, then click as fast as you can</div>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><div class="num" id="rtLast">–</div><div class="lab">LAST (ms)</div></div>
+      <div class="stat"><div class="num" id="rtBest">–</div><div class="lab">BEST (ms)</div></div>
+      <div class="stat"><div class="num" id="rtAvg">–</div><div class="lab">AVG (ms)</div></div>
+      <div class="stat"><div class="num" id="rtTries">0</div><div class="lab">TRIES</div></div>
+    </div>
+  </div>
+  <div class="card"><div class="lb-title"><h3>🏆 Reaction Test Leaderboard</h3><span>Lower is better · +50/30/15 pts hourly to top 3</span></div><div id="lb-reaction"><div class="loading">Loading…</div></div></div>
+
+  <!-- CIRCLES MODE -->
+  <div class="card mode-panel" id="panel-circles" style="display:none;">
+    <div class="circ-hud">
+      <div>Score: <b id="circScore" style="color:var(--accent)">0</b> &nbsp;|&nbsp; Avg: <span id="circAvg">–</span> ms</div>
+      <div class="timer" id="circTimer">30.0s</div>
+    </div>
+    <div class="circ-zone" id="circZone">
+      <div class="center-msg" id="circStartMsg">
+        <div style="font-size:18px;font-weight:700;">Click circles as they appear for 30 seconds. Every circle is the same size.</div>
+        <button class="primary" id="circStartBtn">Start Round</button>
+      </div>
+    </div>
+  </div>
+  <div class="card" id="circles-lb-card" style="display:none;"><div class="lb-title"><h3>🏆 Click the Circles Leaderboard</h3><span>Higher score is better · +50/30/15 pts hourly to top 3</span></div><div id="lb-circles"><div class="loading">Loading…</div></div></div>
+
+  <!-- ONLINE DUEL MODE -->
+  <div class="card mode-panel" id="panel-duel" style="display:none;">
+    <div id="duelIdleView">
+      <div class="duel-box idle">
+        <div class="headline">Find a real opponent</div>
+        <div class="sub2">You'll be matched with another random player online. Best of 5 rounds — react first, don't jump early.</div>
+      </div>
+      <div class="center-btn"><button class="primary" id="duelFindBtn">Find Opponent</button></div>
+    </div>
+
+    <div id="duelSearchingView" style="display:none;text-align:center;">
+      <div class="spinner"></div>
+      <div style="font-weight:700;">Searching for an opponent…</div>
+      <div class="duel-status">This can take a moment if no one else is online right now.</div>
+      <div class="center-btn"><button class="ghost" id="duelCancelBtn">Cancel</button></div>
+    </div>
+
+    <div id="duelMatchView" style="display:none;">
+      <div class="vs-row">
+        <div class="vname" id="duelMeLabel">You</div>
+        <div class="vs-mid">VS</div>
+        <div class="vname" id="duelOppLabel">Opponent</div>
+      </div>
+      <div class="duel-box idle" id="duelBox">
+        <div class="headline" id="duelHeadline">Get ready…</div>
+        <div class="sub2" id="duelSub">Round starting soon</div>
+      </div>
+      <div class="duel-score">
+        <div>Round <b id="duelRoundNum">0</b>/5</div>
+        <div>You: <b id="duelMyScore">0</b></div>
+        <div>Opp: <b id="duelOppScore">0</b></div>
+      </div>
+      <div class="duel-status" id="duelResultMsg"></div>
+      <div class="center-btn" id="duelLeaveWrap"><button class="ghost" id="duelLeaveBtn">Leave Match</button></div>
+    </div>
+  </div>
+  <div class="card" id="duel-lb-card" style="display:none;"><div class="lb-title"><h3>🏆 Duel Wins Leaderboard</h3><span>Total match wins · +50/30/15 pts hourly to top 3</span></div><div id="lb-duel"><div class="loading">Loading…</div></div></div>
+
+  <!-- SHOP -->
+  <div class="card mode-panel" id="panel-shop" style="display:none;">
+    <div class="shop-balance">
+      <div>Name effects for your leaderboard name. Earn points by winning duels (+200) and holding top-3 spots on any leaderboard (+50/+30/+15 every hour).</div>
+      <div class="bal-num" id="shopBalance">0 pts</div>
+    </div>
+    <div class="shop-section"><h3>Solid Colors — 1,000 pts</h3><div class="shop-grid" id="shopColors"></div></div>
+    <div class="shop-section"><h3>Gradient Colors — 10,000 pts</h3><div class="shop-grid" id="shopGradients"></div></div>
+    <div class="shop-section"><h3>Rainbow &amp; Animated — 50,000 pts</h3><div class="shop-grid" id="shopAnimated"></div></div>
+  </div>
+</div>
+
+<script>
+// =====================================================================
+// BACKEND CONFIG — fill these in with your own Supabase project so the
+// game works when hosted on a normal website (outside claude.ai).
+// Leave them as-is and the game will still work fine inside claude.ai.
+// =====================================================================
+const SUPABASE_URL = 'https://bcyzyflhowpqcapzhobv.supabase.co';        // e.g. https://xxxx.supabase.co
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjeXp5Zmxob3dwcWNhcHpob2J2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU1MzI1NDMsImV4cCI6MjEwMTEwODU0M30.juYfGpHECei0_fLSPVK3BnuPU0osOB5T2HpBJZrQflY'; // the "anon public" key
+
+let backend = null; // 'claude' | 'supabase' | null
+let sb = null;
+
+async function initStorage(){
+  const statusEl = document.getElementById('connStatus');
+  if(window.storage && typeof window.storage.get === 'function'){
+    try{
+      await window.storage.list('__ping__', true);
+      backend = 'claude';
+      statusEl.innerHTML = 'Connected via <b>Claude storage</b> (data is shared with everyone using this artifact)';
+      return;
+    }catch(e){ /* fall through */ }
+  }
+  if(SUPABASE_URL !== 'YOUR_SUPABASE_URL' && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY' && window.supabase){
+    try{
+      sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { error } = await sb.from('kv_store').select('key').limit(1);
+      if(error) throw error;
+      backend = 'supabase';
+      statusEl.innerHTML = 'Connected via <b>Supabase</b>';
+      return;
+    }catch(e){ console.error('Supabase init failed', e); }
+  }
+  backend = null;
+  statusEl.classList.add('offline');
+  statusEl.innerHTML = 'No backend connected — leaderboards, duels, and the shop are disabled. See the comment near the top of the script for setup instructions.';
+}
+
+async function safeGet(key, shared){
+  try{
+    if(backend==='claude'){ const r = await window.storage.get(key, shared); return r ? r.value : null; }
+    if(backend==='supabase'){
+      const { data, error } = await sb.from('kv_store').select('value').eq('key', key).maybeSingle();
+      if(error || !data) return null;
+      return JSON.stringify(data.value);
+    }
+  }catch(e){ return null; }
+  return null;
+}
+async function safeSet(key, value, shared){
+  try{
+    if(backend==='claude'){ return await window.storage.set(key, value, shared); }
+    if(backend==='supabase'){
+      const parsed = JSON.parse(value);
+      const { error } = await sb.from('kv_store').upsert({ key, value: parsed, updated_at: new Date().toISOString() });
+      return error ? null : true;
+    }
+  }catch(e){ console.error('safeSet failed', e); return null; }
+  return null;
+}
+async function listKeys(prefix, shared){
+  try{
+    if(backend==='claude'){ return await window.storage.list(prefix, shared); }
+    if(backend==='supabase'){
+      const { data, error } = await sb.from('kv_store').select('key').like('key', prefix+'%');
+      if(error) return null;
+      return { keys: data.map(d=>d.key) };
+    }
+  }catch(e){ return null; }
+  return null;
+}
+
+// ===================== SHARED HELPERS =====================
+function fmt(n){ return Math.round(n); }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function getName(){ const n = document.getElementById('playerName').value.trim(); return n || 'Anonymous'; }
+function myId(){
+  let id = sessionStorage.getItem('reflexArenaId');
+  if(!id){ id = 'p_' + Math.random().toString(36).slice(2) + Date.now().toString(36); sessionStorage.setItem('reflexArenaId', id); }
+  return id;
+}
+
+// ===================== POINTS / EFFECTS =====================
+const SHOP_ITEMS = [
+  {id:'red', tier:'color', label:'Red', price:1000, cls:'fx-red'},
+  {id:'orange', tier:'color', label:'Orange', price:1000, cls:'fx-orange'},
+  {id:'yellow', tier:'color', label:'Yellow', price:1000, cls:'fx-yellow'},
+  {id:'green', tier:'color', label:'Green', price:1000, cls:'fx-green'},
+  {id:'cyan', tier:'color', label:'Cyan', price:1000, cls:'fx-cyan'},
+  {id:'blue', tier:'color', label:'Blue', price:1000, cls:'fx-blue'},
+  {id:'purple', tier:'color', label:'Purple', price:1000, cls:'fx-purple'},
+  {id:'pink', tier:'color', label:'Pink', price:1000, cls:'fx-pink'},
+  {id:'grad-sunset', tier:'gradient', label:'Sunset', price:10000, cls:'fx-grad-sunset'},
+  {id:'grad-ocean', tier:'gradient', label:'Ocean', price:10000, cls:'fx-grad-ocean'},
+  {id:'grad-galaxy', tier:'gradient', label:'Galaxy', price:10000, cls:'fx-grad-galaxy'},
+  {id:'grad-fire', tier:'gradient', label:'Fire', price:10000, cls:'fx-grad-fire'},
+  {id:'grad-mint', tier:'gradient', label:'Mint', price:10000, cls:'fx-grad-mint'},
+  {id:'anim-rainbow', tier:'animated', label:'Rainbow Cycle', price:50000, cls:'fx-anim-rainbow'},
+  {id:'anim-pulse', tier:'animated', label:'Pulse Glow', price:50000, cls:'fx-anim-pulse'},
+  {id:'anim-shift', tier:'animated', label:'Color Shift', price:50000, cls:'fx-anim-shift'},
+];
+const HOURLY_AWARDS = [50,30,15];
+const DUEL_WIN_POINTS = 200;
+
+function pointsKey(name){ return 'points:' + name.toLowerCase(); }
+async function loadPoints(name){
+  const raw = await safeGet(pointsKey(name), true);
+  if(raw){ try{ const r = JSON.parse(raw); return {name, points:r.points||0, owned:r.owned||[], equipped:r.equipped||null}; }catch(e){} }
+  return {name, points:0, owned:[], equipped:null};
+}
+async function savePoints(rec){ await safeSet(pointsKey(rec.name), JSON.stringify(rec), true); }
+async function addPoints(name, amt){
+  const rec = await loadPoints(name);
+  rec.points = (rec.points||0) + amt;
+  await savePoints(rec);
+  return rec;
+}
+function effectClass(effectId){ const it = SHOP_ITEMS.find(i=>i.id===effectId); return it ? it.cls : ''; }
+function nameHtml(name, effectId){
+  const cls = effectClass(effectId);
+  return `<span class="${cls}">${escapeHtml(name)}</span>`;
+}
+const pointsCache = {};
+async function getEffectFor(name){
+  const k = name.toLowerCase();
+  if(pointsCache[k]) return pointsCache[k].equipped;
+  const rec = await loadPoints(name);
+  pointsCache[k] = rec;
+  return rec.equipped;
+}
+
+async function refreshHeader(){
+  const name = getName();
+  const rec = await loadPoints(name);
+  pointsCache[name.toLowerCase()] = rec;
+  document.getElementById('ptsBadge').textContent = rec.points.toLocaleString();
+  document.getElementById('namePreview').innerHTML = nameHtml(name, rec.equipped);
+  if(document.getElementById('panel-shop').style.display !== 'none') renderShop();
+}
+document.getElementById('playerName').addEventListener('input', refreshHeader);
+
+// ===================== NAV =====================
+const panels = {reaction:'panel-reaction', circles:'panel-circles', duel:'panel-duel', shop:'panel-shop'};
+document.querySelectorAll('.mode-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const mode = btn.dataset.mode;
+    Object.entries(panels).forEach(([k,id])=>{ document.getElementById(id).style.display = (k===mode)?'':'none'; });
+    document.getElementById('circles-lb-card').style.display = mode==='circles' ? '' : 'none';
+    document.getElementById('duel-lb-card').style.display = mode==='duel' ? '' : 'none';
+    if(mode==='shop') renderShop();
+  });
+});
+
+// ===================== LEADERBOARD RENDER =====================
+async function renderLB(el, entries, valKey, fmtFn, myName){
+  if(entries.length===0){ el.innerHTML = '<div class="empty">No scores yet. Be the first!</div>'; return; }
+  const withEffects = await Promise.all(entries.map(async e=>{ const eff = await getEffectFor(e.name); return {...e, eff}; }));
+  let rows = withEffects.map((e,i)=>{
+    const rankCls = i===0?'g1':i===1?'g2':i===2?'g3':'';
+    const isMe = e.name && e.name.toLowerCase()===myName.toLowerCase();
+    return `<tr class="${isMe?'me':''}"><td class="rank ${rankCls}">#${i+1}</td><td>${nameHtml(e.name||'Anon', e.eff)}</td><td style="text-align:right;">${fmtFn(e[valKey])}</td></tr>`;
+  }).join('');
+  el.innerHTML = `<table><thead><tr><th></th><th>Player</th><th style="text-align:right;">Score</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+async function fetchLBEntries(prefix){
+  if(backend===null) return [];
+  const list = await listKeys(prefix, true);
+  if(!list || !list.keys || list.keys.length===0) return [];
+  const entries = [];
+  for(const k of list.keys){ const raw = await safeGet(k, true); if(raw){ try{ entries.push(JSON.parse(raw)); }catch(e){} } }
+  return entries;
+}
+
+// ===================== REACTION TEST MODE =====================
+const rtZone = document.getElementById('rtZone');
+let rtState = 'idle', rtTimeout = null, rtStartTime = 0, rtTries = 0, rtTotal = 0, rtBest = Infinity;
+function rtReset(text, sub, cls){ rtZone.className = 'rt-zone' + (cls?(' '+cls):''); rtZone.innerHTML = `<div class="big">${text}</div><div class="small">${sub}</div>`; }
+rtZone.addEventListener('click', ()=>{
+  if(rtState === 'idle' || rtState === 'tooSoon' || rtState === 'result'){
+    rtState = 'waiting'; rtReset('Wait for green...', "Don't click yet", 'wait');
+    const delay = 1500 + Math.random()*3000;
+    rtTimeout = setTimeout(()=>{ rtState = 'ready'; rtStartTime = performance.now(); rtReset('CLICK NOW!', '', 'go'); }, delay);
+  } else if(rtState === 'waiting'){
+    clearTimeout(rtTimeout); rtState = 'tooSoon'; rtReset('Too soon!', 'You clicked before green. Click to try again.', '');
+  } else if(rtState === 'ready'){
+    const rt = performance.now() - rtStartTime; rtState = 'result';
+    rtTries++; rtTotal += rt; if(rt < rtBest) rtBest = rt;
+    document.getElementById('rtLast').textContent = fmt(rt);
+    document.getElementById('rtBest').textContent = fmt(rtBest);
+    document.getElementById('rtAvg').textContent = fmt(rtTotal/rtTries);
+    document.getElementById('rtTries').textContent = rtTries;
+    rtReset(fmt(rt)+' ms', 'Click to try again', '');
+    submitReaction(rt);
+  }
+});
+async function submitReaction(rt){
+  if(backend===null) return;
+  const name = getName(); const key = 'lb:reaction:'+name.toLowerCase();
+  const existingRaw = await safeGet(key, true);
+  let best = rt;
+  if(existingRaw){ try{ best = Math.min(JSON.parse(existingRaw).best, rt); }catch(e){} }
+  await safeSet(key, JSON.stringify({name, best, updated: Date.now()}), true);
+  loadReactionLeaderboard();
+}
+async function loadReactionLeaderboard(){
+  const el = document.getElementById('lb-reaction');
+  if(backend===null){ el.innerHTML = '<div class="empty">Leaderboard unavailable — no backend connected.</div>'; return; }
+  try{ const entries = await fetchLBEntries('lb:reaction:'); entries.sort((a,b)=>a.best-b.best); await renderLB(el, entries.slice(0,10), 'best', v=>fmt(v)+' ms', getName()); }
+  catch(e){ el.innerHTML = '<div class="empty">Leaderboard unavailable right now.</div>'; }
+}
+
+// ===================== CLICK THE CIRCLES MODE =====================
+const circZone = document.getElementById('circZone');
+const CIRCLE_SIZE = 56; // every circle is this size, no randomness
+let circActive = false, circScore = 0, circTimeLeft = 30, circTimerInt = null, circSpawnTimeout = null, circReactionTotal = 0, circReactionCount = 0;
+document.getElementById('circStartBtn').addEventListener('click', startCircleRound);
+function startCircleRound(){
+  const startMsg = document.getElementById('circStartMsg'); if(startMsg) startMsg.remove();
+  circActive = true; circScore = 0; circTimeLeft = 30; circReactionTotal = 0; circReactionCount = 0;
+  document.getElementById('circScore').textContent = '0'; document.getElementById('circAvg').textContent = '–'; document.getElementById('circTimer').textContent = '30.0s';
+  circTimerInt = setInterval(()=>{
+    circTimeLeft -= 0.1;
+    if(circTimeLeft <= 0){ endCircleRound(); } else { document.getElementById('circTimer').textContent = circTimeLeft.toFixed(1)+'s'; }
+  }, 100);
+  spawnCircle();
+}
+function spawnCircle(){
+  if(!circActive) return;
+  const size = CIRCLE_SIZE;
+  const zoneRect = circZone.getBoundingClientRect();
+  const maxX = Math.max(10, zoneRect.width - size - 10), maxY = Math.max(10, zoneRect.height - size - 10);
+  const x = 10 + Math.random()*maxX, y = 10 + Math.random()*maxY;
+  const target = document.createElement('button');
+  target.className = 'circ-target'; target.style.left = x+'px'; target.style.top = y+'px';
+  const spawnTime = performance.now();
+  const lifespan = 1800 - Math.min(900, circScore*15);
+  let removeTimeout = setTimeout(()=>{ target.remove(); if(circActive){ circSpawnTimeout = setTimeout(spawnCircle, 120); } }, lifespan);
+  target.addEventListener('click', (e)=>{
+    e.stopPropagation(); clearTimeout(removeTimeout);
+    const rt = performance.now() - spawnTime; circReactionTotal += rt; circReactionCount++; circScore++;
+    document.getElementById('circScore').textContent = circScore;
+    document.getElementById('circAvg').textContent = fmt(circReactionTotal/circReactionCount);
+    target.remove();
+    if(circActive){ circSpawnTimeout = setTimeout(spawnCircle, 60); }
+  });
+  circZone.appendChild(target);
+}
+async function endCircleRound(){
+  circActive = false; clearInterval(circTimerInt); clearTimeout(circSpawnTimeout);
+  document.getElementById('circTimer').textContent = '0.0s';
+  circZone.querySelectorAll('.circ-target').forEach(t=>t.remove());
+  const msg = document.createElement('div'); msg.className = 'center-msg';
+  msg.innerHTML = `<div style="font-size:22px;font-weight:700;">Round over! Score: ${circScore}</div><div style="color:var(--muted);font-size:13px;">Avg reaction: ${circReactionCount? fmt(circReactionTotal/circReactionCount):'–'} ms</div><button class="primary" id="circRestartBtn">Play Again</button>`;
+  circZone.appendChild(msg);
+  document.getElementById('circRestartBtn').addEventListener('click', ()=>{ msg.remove(); startCircleRound(); });
+  await submitCircleScore(circScore);
+}
+async function submitCircleScore(score){
+  if(backend===null || score<=0){ loadCircleLeaderboard(); return; }
+  const name = getName(); const key = 'lb:circles:'+name.toLowerCase();
+  const existingRaw = await safeGet(key, true);
+  let best = score;
+  if(existingRaw){ try{ best = Math.max(JSON.parse(existingRaw).best, score); }catch(e){} }
+  await safeSet(key, JSON.stringify({name, best, updated: Date.now()}), true);
+  loadCircleLeaderboard();
+}
+async function loadCircleLeaderboard(){
+  const el = document.getElementById('lb-circles');
+  if(backend===null){ el.innerHTML = '<div class="empty">Leaderboard unavailable — no backend connected.</div>'; return; }
+  try{ const entries = await fetchLBEntries('lb:circles:'); entries.sort((a,b)=>b.best-a.best); await renderLB(el, entries.slice(0,10), 'best', v=>v, getName()); }
+  catch(e){ el.innerHTML = '<div class="empty">Leaderboard unavailable right now.</div>'; }
+}
+
+// ===================== ONLINE 1v1 DUEL MODE =====================
+const DUEL_QUEUE_KEY = 'duel:queue';
+let duelPollInterval = null, duelMatchId = null, duelRole = null, duelOpponentName = null, duelLastKnownRound = 0, duelMyReactionSent = false, duelSearching = false;
+
+function showDuelView(view){
+  document.getElementById('duelIdleView').style.display = view==='idle' ? '' : 'none';
+  document.getElementById('duelSearchingView').style.display = view==='searching' ? '' : 'none';
+  document.getElementById('duelMatchView').style.display = view==='match' ? '' : 'none';
+}
+document.getElementById('duelFindBtn').addEventListener('click', findDuelOpponent);
+document.getElementById('duelCancelBtn').addEventListener('click', cancelDuelSearch);
+document.getElementById('duelLeaveBtn').addEventListener('click', leaveDuel);
+
+async function findDuelOpponent(){
+  if(backend===null){ alert('No backend connected — duels need a working backend. See the setup notes near the top of the code.'); return; }
+  duelSearching = true;
+  showDuelView('searching');
+  const name = getName(); const id = myId();
+  await tryMatchOnce(name, id);
+  duelPollInterval = setInterval(()=>pollDuelQueueOrMatch(name, id), 1800);
+}
+async function tryMatchOnce(name, id){
+  const raw = await safeGet(DUEL_QUEUE_KEY, true);
+  let queue = [];
+  if(raw){ try{ queue = JSON.parse(raw); }catch(e){ queue = []; } }
+  const now = Date.now();
+  queue = queue.filter(e => now - e.ts < 30000);
+
+  const mine = queue.find(e=>e.id===id);
+  if(mine && mine.matchId){ await joinExistingMatch(mine.matchId, 'p2', mine.opponentName); return true; }
+
+  const candidate = queue.find(e => e.id!==id && !e.matchId);
+  if(candidate){
+    const matchId = 'm_' + Math.random().toString(36).slice(2) + now.toString(36);
+    await safeSet('duel:match:'+matchId+':meta', JSON.stringify({
+      p1Id: candidate.id, p1Name: candidate.name, p2Id: id, p2Name: name,
+      round: 1, status:'active', p1Wins:0, p2Wins:0,
+      signalAt: Date.now() + 1500 + Math.random()*2500, winner: null
+    }), true);
+    const newQueue = queue.filter(e=>e.id!==id && e.id!==candidate.id);
+    newQueue.push({...candidate, matchId, opponentName: name, ts: now});
+    await safeSet(DUEL_QUEUE_KEY, JSON.stringify(newQueue), true);
+    await joinExistingMatch(matchId, 'p2', candidate.name);
+    return true;
+  }
+
+  const newQueue = queue.filter(e=>e.id!==id);
+  newQueue.push({id, name, ts: now, matchId:null});
+  await safeSet(DUEL_QUEUE_KEY, JSON.stringify(newQueue), true);
+  return false;
+}
+async function pollDuelQueueOrMatch(name, id){
+  if(!duelSearching) return;
+  const matched = await tryMatchOnce(name, id);
+  if(matched){ clearInterval(duelPollInterval); duelPollInterval = null; }
+}
+function cancelDuelSearch(){
+  duelSearching = false;
+  if(duelPollInterval){ clearInterval(duelPollInterval); duelPollInterval = null; }
+  showDuelView('idle');
+  (async ()=>{
+    const raw = await safeGet(DUEL_QUEUE_KEY, true);
+    if(raw){ try{ let queue = JSON.parse(raw).filter(e=>e.id!==myId()); await safeSet(DUEL_QUEUE_KEY, JSON.stringify(queue), true); }catch(e){} }
+  })();
+}
+async function joinExistingMatch(matchId, role, opponentName){
+  duelSearching = false;
+  if(duelPollInterval){ clearInterval(duelPollInterval); duelPollInterval = null; }
+  duelMatchId = matchId; duelRole = role; duelOpponentName = opponentName;
+  duelLastKnownRound = 0; duelMyReactionSent = false;
+  const myEff = (await loadPoints(getName())).equipped;
+  const oppEff = await getEffectFor(opponentName);
+  document.getElementById('duelMeLabel').innerHTML = nameHtml(getName(), myEff) + ' (you)';
+  document.getElementById('duelOppLabel').innerHTML = nameHtml(opponentName, oppEff);
+  document.getElementById('duelRoundNum').textContent = '1';
+  document.getElementById('duelMyScore').textContent = '0';
+  document.getElementById('duelOppScore').textContent = '0';
+  document.getElementById('duelResultMsg').textContent = '';
+  showDuelView('match');
+  const box = document.getElementById('duelBox');
+  box.className = 'duel-box idle';
+  document.getElementById('duelHeadline').textContent = 'Get ready…';
+  document.getElementById('duelSub').textContent = 'Round starting soon';
+  box.onclick = handleDuelBoxClick;
+  duelPollInterval = setInterval(duelMatchTick, 300);
+  duelMatchTick();
+}
+function duelReactionKey(round, role){ return `duel:match:${duelMatchId}:r${round}:${role}`; }
+function duelMetaKey(){ return `duel:match:${duelMatchId}:meta`; }
+async function duelMatchTick(){
+  if(!duelMatchId) return;
+  const raw = await safeGet(duelMetaKey(), true);
+  if(!raw) return;
+  let meta; try{ meta = JSON.parse(raw); }catch(e){ return; }
+
+  document.getElementById('duelRoundNum').textContent = meta.round;
+  document.getElementById('duelMyScore').textContent = duelRole==='p1' ? meta.p1Wins : meta.p2Wins;
+  document.getElementById('duelOppScore').textContent = duelRole==='p1' ? meta.p2Wins : meta.p1Wins;
+
+  if(meta.status === 'finished'){
+    clearInterval(duelPollInterval); duelPollInterval = null;
+    const iWon = (duelRole==='p1' && meta.winner==='p1') || (duelRole==='p2' && meta.winner==='p2');
+    const box = document.getElementById('duelBox'); box.className = 'duel-box idle'; box.onclick = null;
+    document.getElementById('duelHeadline').textContent = meta.winner==='tie' ? "It's a tie!" : (iWon ? 'You win the match! 🏆' : 'You lost the match');
+    document.getElementById('duelSub').textContent = `Final score ${meta.p1Wins} - ${meta.p2Wins}`;
+    if(iWon){
+      await addPoints(getName(), DUEL_WIN_POINTS);
+      const key = 'lb:duel:'+getName().toLowerCase();
+      const existingRaw = await safeGet(key, true);
+      let wins = 1;
+      if(existingRaw){ try{ wins = (JSON.parse(existingRaw).wins||0)+1; }catch(e){} }
+      await safeSet(key, JSON.stringify({name:getName(), wins, updated:Date.now()}), true);
+      loadDuelLeaderboard();
+      refreshHeader();
+    }
+    return;
+  }
+
+  if(meta.round !== duelLastKnownRound){ duelLastKnownRound = meta.round; duelMyReactionSent = false; document.getElementById('duelResultMsg').textContent=''; }
+
+  const now = Date.now();
+  const box = document.getElementById('duelBox');
+  if(now < meta.signalAt){
+    box.className = 'duel-box wait'; box.onclick = handleDuelBoxClick;
+    document.getElementById('duelHeadline').textContent = 'Wait for green…';
+    document.getElementById('duelSub').textContent = "Don't click yet";
+  } else {
+    box.className = 'duel-box go'; box.onclick = handleDuelBoxClick;
+    document.getElementById('duelHeadline').textContent = duelMyReactionSent ? 'Sent! Waiting on opponent…' : 'CLICK NOW!';
+    document.getElementById('duelSub').textContent = '';
+  }
+
+  if(duelRole === 'p1'){
+    const p1r = await safeGet(duelReactionKey(meta.round,'p1'), true);
+    const p2r = await safeGet(duelReactionKey(meta.round,'p2'), true);
+    const p1v = p1r ? JSON.parse(p1r) : null;
+    const p2v = p2r ? JSON.parse(p2r) : null;
+    const bothIn = p1v && p2v;
+    const timedOut = now > meta.signalAt + 6000;
+    if(bothIn || (timedOut && (p1v||p2v))){
+      let roundWinner;
+      if(p1v && p1v.type==='falseStart' && !(p2v && p2v.type==='falseStart')) roundWinner='p2';
+      else if(p2v && p2v.type==='falseStart' && !(p1v && p1v.type==='falseStart')) roundWinner='p1';
+      else if(p1v && p2v){ roundWinner = p1v.rt <= p2v.rt ? 'p1' : 'p2'; }
+      else if(p1v && !p2v) roundWinner='p1';
+      else if(p2v && !p1v) roundWinner='p2';
+      else roundWinner = null;
+
+      if(roundWinner){ meta.p1Wins += roundWinner==='p1' ? 1 : 0; meta.p2Wins += roundWinner==='p2' ? 1 : 0; }
+      if(meta.p1Wins >= 3 || meta.p2Wins >= 3 || meta.round >= 5){
+        meta.status = 'finished';
+        meta.winner = meta.p1Wins===meta.p2Wins ? 'tie' : (meta.p1Wins>meta.p2Wins?'p1':'p2');
+      } else {
+        meta.round += 1;
+        meta.signalAt = Date.now() + 1500 + Math.random()*2500;
+      }
+      await safeSet(duelMetaKey(), JSON.stringify(meta), true);
+    }
+  }
+}
+async function handleDuelBoxClick(){
+  if(!duelMatchId || duelMyReactionSent) return;
+  const raw = await safeGet(duelMetaKey(), true);
+  if(!raw) return;
+  let meta; try{ meta = JSON.parse(raw); }catch(e){ return; }
+  const now = Date.now();
+  duelMyReactionSent = true;
+  if(now < meta.signalAt){
+    await safeSet(duelReactionKey(meta.round, duelRole), JSON.stringify({type:'falseStart'}), true);
+    document.getElementById('duelResultMsg').textContent = 'Too soon! You false started this round.';
+  } else {
+    const rt = now - meta.signalAt;
+    await safeSet(duelReactionKey(meta.round, duelRole), JSON.stringify({type:'reaction', rt}), true);
+    document.getElementById('duelResultMsg').textContent = `You reacted in ${rt} ms — waiting on opponent…`;
+  }
+}
+function leaveDuel(){
+  if(duelPollInterval){ clearInterval(duelPollInterval); duelPollInterval = null; }
+  duelMatchId = null; duelRole = null; duelOpponentName = null;
+  showDuelView('idle');
+}
+async function loadDuelLeaderboard(){
+  const el = document.getElementById('lb-duel');
+  if(backend===null){ el.innerHTML = '<div class="empty">Leaderboard unavailable — no backend connected.</div>'; return; }
+  try{ const entries = await fetchLBEntries('lb:duel:'); entries.sort((a,b)=>b.wins-a.wins); await renderLB(el, entries.slice(0,10), 'wins', v=>v, getName()); }
+  catch(e){ el.innerHTML = '<div class="empty">Leaderboard unavailable right now.</div>'; }
+}
+
+// ===================== SHOP =====================
+async function renderShop(){
+  const name = getName();
+  const rec = await loadPoints(name);
+  pointsCache[name.toLowerCase()] = rec;
+  document.getElementById('shopBalance').textContent = rec.points.toLocaleString() + ' pts';
+  document.getElementById('ptsBadge').textContent = rec.points.toLocaleString();
+
+  const groups = {color: document.getElementById('shopColors'), gradient: document.getElementById('shopGradients'), animated: document.getElementById('shopAnimated')};
+  Object.values(groups).forEach(g=>g.innerHTML='');
+  SHOP_ITEMS.forEach(item=>{
+    const owned = rec.owned.includes(item.id);
+    const equipped = rec.equipped === item.id;
+    const div = document.createElement('div');
+    div.className = 'shop-item';
+    div.innerHTML = `
+      <div class="preview ${item.cls}">${escapeHtml(name)}</div>
+      <div class="price">${item.label} · ${item.price.toLocaleString()} pts</div>
+      ${owned
+        ? `<button class="${equipped?'equipped':'equip'}" data-id="${item.id}" data-action="${equipped?'unequip':'equip'}">${equipped ? 'Equipped ✓' : 'Equip'}</button>`
+        : `<button class="buy" data-id="${item.id}" data-action="buy" ${(backend===null || rec.points<item.price)?'disabled':''}>Buy</button>`
+      }`;
+    groups[item.tier].appendChild(div);
+  });
+  document.getElementById('panel-shop').querySelectorAll('button[data-id]').forEach(btn=>{
+    btn.onclick = ()=>handleShopAction(btn.dataset.id, btn.dataset.action);
+  });
+}
+async function handleShopAction(itemId, action){
+  if(backend===null) return;
+  const name = getName();
+  const item = SHOP_ITEMS.find(i=>i.id===itemId);
+  const rec = await loadPoints(name);
+  if(action==='buy'){
+    if(rec.points < item.price || rec.owned.includes(itemId)) return;
+    rec.points -= item.price; rec.owned.push(itemId); rec.equipped = itemId;
+    await savePoints(rec);
+  } else if(action==='equip'){ rec.equipped = itemId; await savePoints(rec); }
+  else if(action==='unequip'){ rec.equipped = null; await savePoints(rec); }
+  pointsCache[name.toLowerCase()] = rec;
+  renderShop();
+  refreshHeader();
+}
+
+// ===================== HOURLY LEADERBOARD PAYOUTS =====================
+async function checkHourlyPayout(){
+  if(backend===null) return;
+  const raw = await safeGet('payout:meta', true);
+  let meta = {lastRun:0};
+  if(raw){ try{ meta = JSON.parse(raw); }catch(e){} }
+  const now = Date.now();
+  if(now - (meta.lastRun||0) < 3600000) return;
+  await safeSet('payout:meta', JSON.stringify({lastRun: now}), true);
+
+  const boards = [
+    {prefix:'lb:reaction:', sortFn:(a,b)=>a.best-b.best},
+    {prefix:'lb:circles:', sortFn:(a,b)=>b.best-a.best},
+    {prefix:'lb:duel:', sortFn:(a,b)=>b.wins-a.wins},
+  ];
+  for(const b of boards){
+    const entries = await fetchLBEntries(b.prefix);
+    entries.sort(b.sortFn);
+    for(let i=0;i<3 && i<entries.length;i++){ await addPoints(entries[i].name, HOURLY_AWARDS[i]); }
+  }
+  refreshHeader();
+}
+
+// ===================== INIT =====================
+(async ()=>{
+  await initStorage();
+  refreshHeader();
+  loadReactionLeaderboard();
+  loadCircleLeaderboard();
+  loadDuelLeaderboard();
+  checkHourlyPayout();
+  setInterval(checkHourlyPayout, 60000);
+})();
+</script>
+</body>
+</html>
