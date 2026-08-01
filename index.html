@@ -511,33 +511,55 @@ async function findDuelOpponent(){
   duelPollInterval = setInterval(()=>pollDuelQueueOrMatch(name, id), 1800);
 }
 async function tryMatchOnce(name, id){
+  // --- Check if we already have a pending match written for us (p1 path) ---
+  const myMatchKey = 'duel:pending:' + id;
+  const myPendingRaw = await safeGet(myMatchKey, true);
+  if(myPendingRaw){
+    try{
+      const pending = JSON.parse(myPendingRaw);
+      if(Date.now() - pending.ts < 30000){
+        await safeSet(myMatchKey, null, true); // consume it
+        await joinExistingMatch(pending.matchId, 'p1', pending.opponentName);
+        return true;
+      }
+    }catch(e){}
+  }
+
   const raw = await safeGet(DUEL_QUEUE_KEY, true);
   let queue = [];
   if(raw){ try{ queue = JSON.parse(raw); }catch(e){ queue = []; } }
   const now = Date.now();
+  // Expire stale entries
   queue = queue.filter(e => now - e.ts < 30000);
 
-  const mine = queue.find(e=>e.id===id);
-  if(mine && mine.matchId){ await joinExistingMatch(mine.matchId, 'p2', mine.opponentName); return true; }
+  // Are we already in the queue? Just wait.
+  const alreadyQueued = queue.find(e => e.id === id);
+  if(alreadyQueued) return false;
 
-  const candidate = queue.find(e => e.id!==id && !e.matchId);
+  const candidate = queue.find(e => e.id !== id);
   if(candidate){
     const matchId = 'm_' + Math.random().toString(36).slice(2) + now.toString(36);
-    await safeSet('duel:match:'+matchId+':meta', JSON.stringify({
-      p1Id: candidate.id, p1Name: candidate.name, p2Id: id, p2Name: name,
+    const matchMeta = {
+      p1Id: candidate.id, p1Name: candidate.name,
+      p2Id: id, p2Name: name,
       round: 1, status:'active', p1Wins:0, p2Wins:0,
-      signalAt: Date.now() + 1500 + Math.random()*2500, winner: null
-    }), true);
-    const newQueue = queue.filter(e=>e.id!==id && e.id!==candidate.id);
-    newQueue.push({...candidate, matchId, opponentName: name, ts: now});
+      signalAt: Date.now() + 2000 + Math.random()*2000, winner: null
+    };
+    // Write match meta first
+    await safeSet('duel:match:'+matchId+':meta', JSON.stringify(matchMeta), true);
+    // Notify p1 via their personal pending key (avoids queue clobber race)
+    await safeSet('duel:pending:' + candidate.id, JSON.stringify({matchId, opponentName: name, ts: now}), true);
+    // Remove candidate from queue
+    const newQueue = queue.filter(e => e.id !== candidate.id);
     await safeSet(DUEL_QUEUE_KEY, JSON.stringify(newQueue), true);
+    // We are p2 — join immediately
     await joinExistingMatch(matchId, 'p2', candidate.name);
     return true;
   }
 
-  const newQueue = queue.filter(e=>e.id!==id);
-  newQueue.push({id, name, ts: now, matchId:null});
-  await safeSet(DUEL_QUEUE_KEY, JSON.stringify(newQueue), true);
+  // No candidate yet — add ourselves to the queue
+  queue.push({id, name, ts: now});
+  await safeSet(DUEL_QUEUE_KEY, JSON.stringify(queue), true);
   return false;
 }
 async function pollDuelQueueOrMatch(name, id){
